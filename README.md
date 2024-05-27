@@ -1,0 +1,2 @@
+# qgisPlugins
+ QGIS plugin development
