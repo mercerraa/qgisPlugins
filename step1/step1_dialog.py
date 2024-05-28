@@ -34,11 +34,16 @@ from qgis.core import (
     QgsFeature,
     QgsPoint,
     QgsPolygon,
-    QgsProject
-    
+    QgsProject,
+    QgsPalLayerSettings,
+    QgsTextFormat,
+    QgsFontUtils,
+    QgsTextBufferSettings,
+    QgsVectorLayerSimpleLabeling
 )
 from qgis.PyQt.QtCore import QVariant
 from qgis.utils import iface
+from PyQt5.QtGui import QFont, QColor
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -108,6 +113,28 @@ class StepOneDialog(QtWidgets.QDialog, FORM_CLASS):
             newFeature.setAttributes([fieldValues[i], valueCount, percent])
             centroidLayerDP.addFeatures([newFeature])
             centroidLayerDP.updateExtents()
+        
+        layer_settings  = QgsPalLayerSettings()
+        text_format = QgsTextFormat()
+        text_format.setFont(QFont("Arial", 10))
+        text_format.setSize(10)
+
+        buffer_settings = QgsTextBufferSettings()
+        buffer_settings.setEnabled(True)
+        buffer_settings.setSize(1)
+        buffer_settings.setColor(QColor("white"))
+
+        text_format.setBuffer(buffer_settings)
+        layer_settings.setFormat(text_format)
+        layer_settings.fieldName = fieldName
+        #layer_settings.placement = 2
+        layer_settings.enabled = True
+        layer_settings = QgsVectorLayerSimpleLabeling(layer_settings)
+        centroidLayer.setLabelsEnabled(True)
+        centroidLayer.setLabeling(layer_settings)
+        centroidLayer.triggerRepaint()
         QgsProject.instance().addMapLayer(centroidLayer)
         iface.setActiveLayer(centroidLayer)
         iface.zoomToActiveLayer()
+
+
