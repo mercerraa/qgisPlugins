@@ -62,19 +62,29 @@ class StepOneDialog(QtWidgets.QDialog, FORM_CLASS):
         self.setupUi(self)
         self.cmbxSelectVector.layerChanged.connect(self.layerSelectChange)
         self.layerSelectChange()
-        self.bbOKCancel.accepted.connect(self.calculateCounts)
+
+        #self.cmbxSelectField.fieldChanged.connect(self.checkFieldAndFilter)
+        #self.fewFilter.fieldChanged.connect(self.checkFieldAndFilter)
+
+        self.bbOKCancel.accepted.connect(self.calculateCounts) # Change this to a check function. Does checkFieldAndFilter return true?
 
     def layerSelectChange(self):
+        """Set the layer to fetch field list from"""
         selectedLayer = self.cmbxSelectVector.currentLayer()
         if selectedLayer:
-            self.cmbxSelectField.setLayer(selectedLayer)
-            
+            self.fewFilter.setLayer(selectedLayer)
+
+    #def checkValidField(self):
+
 
     def calculateCounts(self):
         layer = self.cmbxSelectVector.currentLayer()
         total = layer.featureCount()
-        print("Layer: {0} has {1} objects".format(layer.name(), total))
-        fieldName = self.cmbxSelectField.currentField()
+        #print("Layer: {0} has {1} objects".format(layer.name(), total))
+        #fieldName = self.cmbxSelectField.currentField()
+        expression = self.fewFilter.expression() # Needs work. Can use to set field name as well as expression but use isExpression first.
+        print("expression: ",expression)
+        fieldName = self.fewFilter.currentField()[0]
         print("Field name: {}".format(fieldName))
         fieldIndex = layer.fields().indexOf(fieldName)
         fieldValues = list(layer.uniqueValues(fieldIndex))
@@ -97,16 +107,10 @@ class StepOneDialog(QtWidgets.QDialog, FORM_CLASS):
             for member in selection:
                 selectionList.append(member)
                 geometryList.append(member.geometry())
-            #print("selectionList: ",selectionList)
             valueCount = len(selectionList)
-            print("{0}: {1}".format(fieldValues[i],valueCount))
-            #print("geometryList: ", geometryList)
-            #print("collected type: ",type(collected))
-            #print(collected)
+            #print("{0}: {1}".format(fieldValues[i],valueCount))
             collected = QgsGeometry.collectGeometry(geometryList)
             centroid = collected.centroid()
-            #print(type(centroid))
-            #print(centroid)
             newFeature = QgsFeature()
             newFeature.setGeometry(QgsGeometry.fromPointXY(centroid.asPoint()))
             percent = valueCount/total
