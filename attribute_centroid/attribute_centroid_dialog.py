@@ -41,7 +41,8 @@ from qgis.core import (
     QgsTextFormat,
     QgsFontUtils,
     QgsTextBufferSettings,
-    QgsVectorLayerSimpleLabeling
+    QgsVectorLayerSimpleLabeling,
+    NULL
 )
 from qgis.PyQt.QtCore import QVariant
 from qgis.utils import iface
@@ -82,7 +83,7 @@ class AttributeCentroidDialog(QtWidgets.QDialog, FORM_CLASS):
         centroidLayer.setCrs(currentCrs)
         centroidLayerDP = centroidLayer.dataProvider()
 
-        #print("Layer: {0} has {1} objects".format(layer.name(), featureTotal))
+        print("Layer: {0} has {1} objects".format(layer.name(), featureTotal))
         if self.fewFilter.isExpression()==True:
             expression = self.fewFilter.expression()
             #print("Expression: {}".format(expression))
@@ -98,6 +99,7 @@ class AttributeCentroidDialog(QtWidgets.QDialog, FORM_CLASS):
             fieldIndex = layer.fields().indexOf(fieldName)
             fieldValues = list(layer.uniqueValues(fieldIndex))
             fieldValues.sort()
+            #print("list of fieldValues: \n", fieldValues)
             uniqueValues = len(fieldValues)
             centroidLayerDP.addAttributes([QgsField(fieldName, QVariant.String), QgsField("count", QVariant.Int), QgsField("percentage", QVariant.Double)])
             centroidLayer.updateFields()
@@ -107,7 +109,13 @@ class AttributeCentroidDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def centroidFromUnique(self, layer, uniqueValues, fieldName, fieldValues, featureTotal, centroidLayerDP):
         for i in range(uniqueValues):
-            searchTerm = "\"{0}\"  IS  '{1}' ".format(fieldName, fieldValues[i])
+            #print("field value: {}".format(fieldValues[i]))
+            if fieldValues[i] == NULL:
+                #print("Null found")
+                searchTerm = "\"{0}\"  IS  {1} ".format(fieldName, fieldValues[i])
+            else:
+                searchTerm = "\"{0}\"  IS  '{1}' ".format(fieldName, fieldValues[i])
+            #print("searchTerm: {}".format(searchTerm))
             selection = layer.getFeatures(QgsFeatureRequest().setFilterExpression(searchTerm))
             selectionList = []
             geometryList = []
