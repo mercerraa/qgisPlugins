@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>Quick Introduction</h1>
+<p>There are two main use cases. In the first, select a vector layer and then a field from that vector. 
+This field should contain attributes from a list, i.e. a limited number of distinct values, such as type of object. 
+The plugin will then create a centroid for each distinct value. 
+In the second, instead of a field with list derived attributes a query (expression) is given to find those object matching the query and a centroid is created for that attribute match. 
+In each case the number of matching objects and their percentage of the total are stored as attributes for the centroid object.
+</p>
+<h1>More detail</h1>
+Start by selecting the layer to work with, using the upper "comboBox". 
+Then select the field in that layer you wish to search through usin the lower comboBox.
+<h2>Case one</h2>
+<p>In the first case given above each attribute is derived from a list of possible values, such as:</p>
+
+<ul>
+    <li>House</li>
+    <li>Garage</li>
+    <li>Shed</li>
+    <li>Gnome</li>
+    <li>Flamingo</li>
+</ul>
+
+Each object in the vector layer can have one attribute from the list and many objects can have the same attribute value, i.e. there may be many gnomes (too many?)
+The plugin will find all the unique values in the selected field and then create a list of these values.
+It will then loop through this list.
+For each element in this list it will then search for each object in the vector layer with a matching attribute value and then from this selection create a centroid.
+Each centroid will receive two attributes: the count, i.e. number of matches and the percentage of the total number of objects within the parent vector that this count represents.
+
+<h2>Case two</h2>
+<p>This will return one centroid only.
+Start as in case one; select the layer and then the field you wish to search through.
+Press the E button at the right and build the query/expression you wish to use.</p>
+<h3>Expressions</h3>
+<p>There are several detailed resourses on line describing how to build an expression such as <a href="https://docs.qgis.org/3.34/en/docs/user_manual/expressions/expression.html">QGIS own documentation.</a>
+</p>
+<p>The Expression Builder window has three panels.
+The left panel contains a text entry panel that displays the current query/expression.
+Below this are some simple, commonly used operators and below these you can see some feedback from QGIS.
+Check here to see that QGIS thinks your expresion is valid.
+</p>
+<p>The middle panel contains lists of tools to use in your expression.
+Most useful here will be "Field and Values" and "Operators". 
+The righthand panel changes appearance depending on what you have selected in the middle panel.
+Often it will show help and examples for the chosen function or operator.
+It can also display a list of attribute values fould in a field of the attribute table. 
+</p>
+<h3>Example 1</h3>
+<p>As an example, the following will construct a query to search through the text of each attribute value in a field, looking for a string of characters found anywhere within the text.
+Field names require double quote marks; the field name should already be in the lefthand panel.
+<code>"FieldName"</code>
+The operator to use when searching will, in part, determine what the search phrase looks like.
+In the list of operators there are are two similar operators: LIKE and ILIKE.
+</p><br>
+<p>
+LIKE searches for a string within the text of the attribute field.
+So <code>"FieldName LIKE 'string'</code> will search for an exact match with string. 
+Note that a search term or attribute name must use single quotes.
+<code>'string'</code>. 
+This will look for the exact word "string" and wil not return any variant on this.
+The ILIKE operator is case insensitive and so would return "string", "String", "STRING" and other variations of this.
+</p><br>
+<p>To search for the string anywhere within text, not only as a standalone word you can use jokers.
+The underscore _ takes one unspecified character and the percentage % takes any number.
+Therefore to search for string in "This is ALONGStRiNgin som text" the following would work:
+<code>"FieldName" ILIKE '%string%'</code>
+</p>
+<h3>Example 2</h3>
+<p>Using regex.
+Regular Expressions are powerful and painful.
+You can test out regex expressions <a href="https://regex101.com/">here.</a>
+In Expression builder the regex operator is the tilde ~ character.
+Look at the following list.
+</p>
+
+<ul>
+    <li>Aword</li>
+    <li>AWORD</li>
+    <li>aword</li>
+    <li>aWord</li>
+    <li>name 12</li>
+    <li>name 12:1</li>
+    <li>other 12</li>
+    <li>other 12:1</li>
+</ul>
+
+<p>Regex is case sensitive, which means that "aWord" is not the same as "aword" or any of the other variants listed.
+To search for aWord simply write
+<code>"FieldName" ~ 'aWord'</code>
+<br>
+But to search case insensitive use instead
+<code>"FieldName" ~ '(?i)aword'</code> 
+and this would return all four "aword" variants in the list above.
+</p>
+<p>
+To specify some letters and some numbers plus a colon in a particular order:
+<code>"FieldName" ~ '[a-zA-Z]+ \d+:'</code> 
+This would return true for "name 12:1" and "other 12:1". In this regex search only the colon is given explicitly.</p>
+<p>
+The part "[a-zA-Z]+ " means search for a string of letters, both lowercase or uppercase, followed by a space.
+The part "\d+" means search for a string of numbers.
+This is followed directly by the colon.
+</p>
+
+</body>
+</html>

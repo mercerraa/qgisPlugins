@@ -1,0 +1,49 @@
+# This file contains metadata for your plugin.
+
+# This file should be included when you package your plugin.
+
+# Mandatory items:
+
+[general]
+name=Attribute Centroid
+qgisMinimumVersion=3.0
+description=Create centroid of occurence of given attribute
+version=0.1
+author=Andrew Mercer
+email=mercerraa@gmail.com
+
+about=There are two main use cases. In the first, select a vector layer and then a field from that vector. This field should contain attributes from a list, i.e. a limited number of distinct values, such as type of object. The plugin will then create a centroid for each distinct value. In the second, instead of a field with list derived attributes a query (expression) is given to find those object matching the query and a centroid is created for that attribute match. In each case the number of matching objects and their percentage of the total are stored as attributes for the centroid object.
+
+tracker=http://bugs
+repository=http://repo
+# End of mandatory metadata
+
+# Recommended items:
+
+hasProcessingProvider=no
+# Uncomment the following line and add your changelog:
+# changelog=
+
+# Tags are comma separated with spaces allowed
+tags=select, centroid, attribute
+
+homepage=https://github.com/mercerraa
+category=Vector
+icon=icon.png
+# experimental flag
+experimental=True
+
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# Check the documentation for more information.
+# plugin_dependencies=
+
+Category of the plugin: Raster, Vector, Database or Web
+# category=
+
+# If the plugin can run on QGIS Server.
+server=False
+
