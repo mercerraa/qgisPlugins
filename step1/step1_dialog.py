@@ -23,6 +23,8 @@
 """
 
 import os
+import re
+import sys
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
@@ -63,10 +65,7 @@ class StepOneDialog(QtWidgets.QDialog, FORM_CLASS):
         self.cmbxSelectVector.layerChanged.connect(self.layerSelectChange)
         self.layerSelectChange()
 
-        #self.cmbxSelectField.fieldChanged.connect(self.checkFieldAndFilter)
-        #self.fewFilter.fieldChanged.connect(self.checkFieldAndFilter)
-
-        self.bbOKCancel.accepted.connect(self.calculateCounts) # Change this to a check function. Does checkFieldAndFilter return true?
+        self.bbOKCancel.accepted.connect(self.checkQuery)
 
     def layerSelectChange(self):
         """Set the layer to fetch field list from"""
@@ -74,31 +73,39 @@ class StepOneDialog(QtWidgets.QDialog, FORM_CLASS):
         if selectedLayer:
             self.fewFilter.setLayer(selectedLayer)
 
-    #def checkValidField(self):
-
-
-    def calculateCounts(self):
+    def checkQuery(self):
         layer = self.cmbxSelectVector.currentLayer()
-        total = layer.featureCount()
-        #print("Layer: {0} has {1} objects".format(layer.name(), total))
-        #fieldName = self.cmbxSelectField.currentField()
-        expression = self.fewFilter.expression() # Needs work. Can use to set field name as well as expression but use isExpression first.
-        print("expression: ",expression)
-        fieldName = self.fewFilter.currentField()[0]
-        print("Field name: {}".format(fieldName))
-        fieldIndex = layer.fields().indexOf(fieldName)
-        fieldValues = list(layer.uniqueValues(fieldIndex))
-        fieldValues.sort()
-        uniqueValues = len(fieldValues)
+        featureTotal = layer.featureCount()
         currentCrs = layer.crs()
         centroidLayerName = layer.name() + "_centroids"
         centroidLayer = QgsVectorLayer("Point", centroidLayerName, "memory")
         centroidLayer.setCrs(currentCrs)
         centroidLayerDP = centroidLayer.dataProvider()
-        centroidLayerDP.addAttributes([QgsField(fieldName, QVariant.String),
-            QgsField("count", QVariant.Int),
-            QgsField("percentage", QVariant.Double)])
-        centroidLayer.updateFields()
+
+        #print("Layer: {0} has {1} objects".format(layer.name(), featureTotal))
+        if self.fewFilter.isExpression()==True:
+            expression = self.fewFilter.expression()
+            #print("Expression: {}".format(expression))
+            fieldName = re.search('\"[\w]*\"',expression).group()
+            #print("Field name from expression: {}".format(fieldName))
+            centroidLayerDP.addAttributes([QgsField(fieldName, QVariant.String), QgsField("count", QVariant.Int), QgsField("percentage", QVariant.Double)])
+            centroidLayer.updateFields()
+            if self.centroidFromExpression(layer, expression, featureTotal, centroidLayerDP) == 1:
+                self.addLayerToMap(fieldName, centroidLayer)
+        else:
+            fieldName = self.fewFilter.currentField()[0]
+            #print("Field name: {}".format(fieldName))
+            fieldIndex = layer.fields().indexOf(fieldName)
+            fieldValues = list(layer.uniqueValues(fieldIndex))
+            fieldValues.sort()
+            uniqueValues = len(fieldValues)
+            centroidLayerDP.addAttributes([QgsField(fieldName, QVariant.String), QgsField("count", QVariant.Int), QgsField("percentage", QVariant.Double)])
+            centroidLayer.updateFields()
+            if self.centroidFromUnique(layer, uniqueValues, fieldName, fieldValues, featureTotal, centroidLayerDP) == 1:
+                self.addLayerToMap(fieldName, centroidLayer)
+ 
+
+    def centroidFromUnique(self, layer, uniqueValues, fieldName, fieldValues, featureTotal, centroidLayerDP):
         for i in range(uniqueValues):
             searchTerm = "\"{0}\"  IS  '{1}' ".format(fieldName, fieldValues[i])
             selection = layer.getFeatures(QgsFeatureRequest().setFilterExpression(searchTerm))
@@ -108,16 +115,41 @@ class StepOneDialog(QtWidgets.QDialog, FORM_CLASS):
                 selectionList.append(member)
                 geometryList.append(member.geometry())
             valueCount = len(selectionList)
-            #print("{0}: {1}".format(fieldValues[i],valueCount))
-            collected = QgsGeometry.collectGeometry(geometryList)
-            centroid = collected.centroid()
-            newFeature = QgsFeature()
-            newFeature.setGeometry(QgsGeometry.fromPointXY(centroid.asPoint()))
-            percent = valueCount/total
-            newFeature.setAttributes([fieldValues[i], valueCount, percent])
-            centroidLayerDP.addFeatures([newFeature])
-            centroidLayerDP.updateExtents()
+            attributeName = fieldValues[i]
+            if self.addCentroid(geometryList, valueCount, featureTotal, attributeName, centroidLayerDP) == 0:
+                return 0
+        return 1
+    
+    def centroidFromExpression(self, layer, expression, featureTotal, centroidLayerDP):
+        selection = layer.getFeatures(QgsFeatureRequest().setFilterExpression(expression))
+        selectionList = []
+        geometryList = []
+        for member in selection:
+            selectionList.append(member)
+            geometryList.append(member.geometry())
+        valueCount = len(selectionList)
+        attributeName = expression
+        if self.addCentroid(geometryList, valueCount, featureTotal, attributeName, centroidLayerDP) == 0:
+            return 0
+        else:
+            return 1
+
+    def addCentroid(self, geometryList, valueCount, featureTotal, attributeName, centroidLayerDP):
+        collected = QgsGeometry.collectGeometry(geometryList)
+        if collected.isEmpty():
+            iface.messageBar().pushMessage("Error", "No matches found. No centroid can be created.", level=1, duration=3)
+            return 0
+        #print("collected: {}\n Truth of isEmpty: {}".format(collected, collected.isEmpty()))
+        centroid = collected.centroid()
+        newFeature = QgsFeature()
+        newFeature.setGeometry(QgsGeometry.fromPointXY(centroid.asPoint()))
+        percent = valueCount/featureTotal
+        newFeature.setAttributes([attributeName, valueCount, percent])
+        centroidLayerDP.addFeatures([newFeature])
+        centroidLayerDP.updateExtents()
+        return 1
         
+    def addLayerToMap(self, fieldName, centroidLayer):
         layer_settings  = QgsPalLayerSettings()
         text_format = QgsTextFormat()
         text_format.setFont(QFont("Arial", 10))
@@ -140,5 +172,5 @@ class StepOneDialog(QtWidgets.QDialog, FORM_CLASS):
         QgsProject.instance().addMapLayer(centroidLayer)
         iface.setActiveLayer(centroidLayer)
         iface.zoomToActiveLayer()
-
+        iface.messageBar().pushMessage("Done", "Centroid layer created", level=3, duration=3)
 

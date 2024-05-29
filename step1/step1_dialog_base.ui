@@ -75,7 +75,7 @@
         </sizepolicy>
        </property>
        <property name="allowEmptyFieldName">
-        <bool>true</bool>
+        <bool>false</bool>
        </property>
       </widget>
      </item>
