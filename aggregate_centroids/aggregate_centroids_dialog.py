@@ -42,7 +42,10 @@ from qgis.core import (
     QgsFontUtils,
     QgsTextBufferSettings,
     QgsVectorLayerSimpleLabeling,
-    NULL
+    NULL,
+    QgsExpression, 
+    QgsExpressionContext, 
+    QgsExpressionContextUtils
 )
 from qgis.PyQt.QtCore import QVariant
 from qgis.utils import iface
@@ -89,15 +92,17 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
         centroidLayer.setCrs(currentCrs)
         centroidLayerDP = centroidLayer.dataProvider()
         firstFieldName = "Selection"
-
-        # Expression 1
         fieldName = "Of_"+str(featureTotal) 
         centroidLayerDP.addAttributes([QgsField(firstFieldName, QVariant.String), QgsField(fieldName, QVariant.Int)])
         centroidLayer.updateFields()
+
+        # Expression 1
         if self.fewExpression1.isExpression()==True:
             expression1 = self.fewExpression1.expression()
             exp1Field1Value = re.search('\"[\w]*\"',expression1).group()
-            makeCheck, selection = self.makeSelection(layer, expression1, centroidLayerDP, firstFieldName, exp1Field1Value)
+            selection1 = self.makeSelection(layer, expression1)
+            self.makeCentroid(selection1, expression1, centroidLayerDP, firstFieldName, exp1Field1Value)
+            self.expression2(centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName) # Exp2 runs fine with an actaul expression in exp1 but not with a field
         else:
             exp1Field1Value = self.fewExpression1.currentField()[0]
             exp1FieldIndex = layer.fields().indexOf(exp1Field1Value)
@@ -109,47 +114,63 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
                     expression1 = "\"{0}\"  IS  {1} ".format(exp1Field1Value, exp1FieldValues[i])
                 else:
                     expression1 = "\"{0}\"  IS  '{1}' ".format(exp1Field1Value, exp1FieldValues[i])
-                madeCheck, selection = self.makeSelection(layer, expression1, centroidLayerDP, firstFieldName, exp1Field1Value)
-        
+                selection1 = self.makeSelection(layer, expression1)
+                self.makeCentroid(selection1, expression1, centroidLayerDP, firstFieldName, exp1Field1Value)
+                self.expression2(centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName) # Exp2 runs fine with an actaul expression in exp1 but not with a field
+                
+    def expression2(self, centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName):
         # Expression 2
         if self.fewExpression2.currentText() != '':
             fieldName = "NeedBetterName"
             centroidLayerDP.addAttributes([QgsField(fieldName, QVariant.Int)])
             centroidLayer.updateFields()
+
             if self.fewExpression2.isExpression()==True:
                 expression2 = self.fewExpression2.expression()
-                exp2FieldName = re.search('\"[\w]*\"',expression2).group()
-                makeCheck, selectionListUpdated = self.makeSelection(selection, expression2, centroidLayerDP, firstFieldName, exp2FieldName)
+                exp2Field1Name = re.search('\"[\w]*\"',expression2).group()
+                selection2 = self.makeSelection(layer, expression2, selection1 )
+                self.makeCentroid(selection2, expression2, centroidLayerDP, firstFieldName, exp2Field1Name)
             else:
-                exp2FieldName = self.fewExpression2.currentField()[0]
-                exp2FieldIndex = layer.fields().indexOf(exp2FieldName)
+                exp2Field1Name = self.fewExpression2.currentField()[0]
+                exp2FieldIndex = layer.fields().indexOf(exp2Field1Name)
                 exp2FieldValues = list(layer.uniqueValues(exp2FieldIndex))
                 exp2FieldValues.sort()
-                print("exp2FieldValues: {}".format(exp2FieldValues))
                 unique2Values = len(exp2FieldValues)
                 for i in range(unique2Values):
-                    print("i: {} is {}".format(i, exp2FieldValues[i]))
                     if exp2FieldValues[i] == NULL:
-                        expression2 = "\"{0}\"  IS  {1} ".format(exp2FieldName, exp2FieldValues[i])
+                        expression2 = "\"{0}\"  IS  {1} ".format(exp2Field1Name, exp2FieldValues[i])
                     else:
-                        expression2 = "\"{0}\"  IS  '{1}' ".format(exp2FieldName, exp2FieldValues[i])
-                    makeCheck, selectionUpdataed = self.makeSelection(selection, expression2, centroidLayerDP, firstFieldName, exp2FieldName)
-        
+                        expression2 = "\"{0}\"  IS  '{1}' ".format(exp2Field1Name, exp2FieldValues[i])
+                    selection2 = self.makeSelection(layer, expression2, selection1 )
+                    self.makeCentroid(selection2, expression1+' AND '+expression2, centroidLayerDP, firstFieldName, exp2Field1Name)
+               
         #if makeCheck == 1:
         self.addLayerToMap("Selection", centroidLayer)
 
-    def makeSelection(self, layer, expression, centroidLayerDP, firstFieldName, secondFieldName):    
-        selection = layer.getFeatures(QgsFeatureRequest().setFilterExpression(expression))
-        selectionList = []
+    
+    def makeSelection(self, layer, expression_str, input_features=None):
+        expression = QgsExpression(expression_str)
+        context = QgsExpressionContext()
+        context.appendScope(QgsExpressionContextUtils.globalScope())
+        fields = layer.fields()
+        if input_features is None:
+            selection = layer.getFeatures(QgsFeatureRequest().setFilterExpression(expression_str))
+        else:
+            selection = []
+            for feature in input_features:
+                context.setFeature(feature) 
+                if expression.evaluate(context):
+                    selection.append(feature)
+        return list(selection)
+
+    def makeCentroid(self, selection, expression, centroidLayerDP, firstFieldName, secondFieldName):
         geometryList = []
         for member in selection:
-            selectionList.append(member)
             geometryList.append(member.geometry())
-        valueCount = len(selectionList)
-        attributeName = expression
-        attributeList = [attributeName, valueCount]
+        valueCount = len(geometryList)
+        attributeList = [expression, valueCount]
         centroidMade = self.addCentroid( geometryList, firstFieldName, secondFieldName, attributeList, centroidLayerDP)
-        return centroidMade, selection
+        return centroidMade
 
     def addCentroid(self, geometryList, firstFieldName, secondFieldName, attributeList, centroidLayerDP):
         collected = QgsGeometry.collectGeometry(geometryList)
