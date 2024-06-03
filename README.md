@@ -5,7 +5,7 @@
 
 I am developing at least one and possible more plugins for QGIS as part of my work for RAÄ.
 
-As of the 3^rd^ of June 2024 the "Aggregate Centroids" is a functional plugin.
+As of the 3<sup>rd</sup> of June 2024 the "Aggregate Centroids" is a functional plugin.
 
 This plugin has three components (widgets): a layer selector and two expression builders.
 Select a vector layer and one of the following:
