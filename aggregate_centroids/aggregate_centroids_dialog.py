@@ -26,7 +26,7 @@ import os
 import re
 import sys
 
-from qgis.PyQt import uic
+from qgis.PyQt import uic # type: ignore
 from qgis.PyQt import QtWidgets
 from qgis.core import (
     QgsVectorLayer,
@@ -91,9 +91,11 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
         centroidLayer = QgsVectorLayer("Point", centroidLayerName, "memory")
         centroidLayer.setCrs(currentCrs)
         centroidLayerDP = centroidLayer.dataProvider()
+        global firstFieldName
         firstFieldName = "Selection"
-        fieldName = "Of_"+str(featureTotal) 
-        centroidLayerDP.addAttributes([QgsField(firstFieldName, QVariant.String), QgsField(fieldName, QVariant.Int)])
+        global secondFieldName
+        secondFieldName = "Of_"+str(featureTotal)+"features"
+        centroidLayerDP.addAttributes([QgsField(firstFieldName, QVariant.String), QgsField(secondFieldName, QVariant.Int)])
         centroidLayer.updateFields()
 
         # Expression 1
@@ -121,7 +123,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
     def expression2(self, centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName):
         # Expression 2
         if self.fewExpression2.currentText() != '':
-            fieldName = "NeedBetterName"
+            fieldName = "SubCount"
             centroidLayerDP.addAttributes([QgsField(fieldName, QVariant.Int)])
             centroidLayer.updateFields()
 
@@ -152,7 +154,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
         expression = QgsExpression(expression_str)
         context = QgsExpressionContext()
         context.appendScope(QgsExpressionContextUtils.globalScope())
-        fields = layer.fields()
+        #fields = layer.fields()
         if input_features is None:
             selection = layer.getFeatures(QgsFeatureRequest().setFilterExpression(expression_str))
         else:
