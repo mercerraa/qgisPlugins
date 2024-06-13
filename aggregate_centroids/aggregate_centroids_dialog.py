@@ -27,8 +27,8 @@ import re
 import sys
 
 from qgis.PyQt import uic # type: ignore
-from qgis.PyQt import QtWidgets
-from qgis.core import (
+from qgis.PyQt import QtWidgets # type: ignore
+from qgis.core import ( # type: ignore
     QgsVectorLayer,
     QgsGeometry,
     QgsFeatureRequest,
@@ -47,14 +47,9 @@ from qgis.core import (
     QgsExpressionContext, 
     QgsExpressionContextUtils
 )
-from qgis.PyQt.QtCore import QVariant
-from qgis.utils import iface
+from qgis.PyQt.QtCore import QVariant # type: ignore
+from qgis.utils import iface # type: ignore
 from PyQt5.QtGui import QFont, QColor
-from qgis.PyQt import uic
-from qgis.PyQt import QtWidgets
-
-from qgis.PyQt import uic
-from qgis.PyQt import QtWidgets
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -104,7 +99,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
             exp1Field1Value = re.search('\"[\w]*\"',expression1).group()
             selection1 = self.makeSelection(layer, expression1)
             self.makeCentroid(selection1, expression1, centroidLayerDP, firstFieldName, exp1Field1Value)
-            self.expression2(centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName) # Exp2 runs fine with an actaul expression in exp1 but not with a field
+            self.expression2(centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName) 
         else:
             exp1Field1Value = self.fewExpression1.currentField()[0]
             exp1FieldIndex = layer.fields().indexOf(exp1Field1Value)
@@ -118,7 +113,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
                     expression1 = "\"{0}\"  IS  '{1}' ".format(exp1Field1Value, exp1FieldValues[i])
                 selection1 = self.makeSelection(layer, expression1)
                 self.makeCentroid(selection1, expression1, centroidLayerDP, firstFieldName, exp1Field1Value)
-                self.expression2(centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName) # Exp2 runs fine with an actaul expression in exp1 but not with a field
+                self.expression2(centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName) 
                 
     def expression2(self, centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName):
         # Expression 2
@@ -129,22 +124,22 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
 
             if self.fewExpression2.isExpression()==True:
                 expression2 = self.fewExpression2.expression()
-                exp2Field1Name = re.search('\"[\w]*\"',expression2).group()
+                exp2Field1Value = re.search('\"[\w]*\"',expression2).group()
                 selection2 = self.makeSelection(layer, expression2, selection1 )
-                self.makeCentroid(selection2, expression2, centroidLayerDP, firstFieldName, exp2Field1Name)
+                self.makeCentroid(selection2, expression2, centroidLayerDP, firstFieldName, exp2Field1Value)
             else:
-                exp2Field1Name = self.fewExpression2.currentField()[0]
-                exp2FieldIndex = layer.fields().indexOf(exp2Field1Name)
+                exp2Field1Value = self.fewExpression2.currentField()[0]
+                exp2FieldIndex = layer.fields().indexOf(exp2Field1Value)
                 exp2FieldValues = list(layer.uniqueValues(exp2FieldIndex))
                 exp2FieldValues.sort()
                 unique2Values = len(exp2FieldValues)
                 for i in range(unique2Values):
                     if exp2FieldValues[i] == NULL:
-                        expression2 = "\"{0}\"  IS  {1} ".format(exp2Field1Name, exp2FieldValues[i])
+                        expression2 = "\"{0}\"  IS  {1} ".format(exp2Field1Value, exp2FieldValues[i])
                     else:
-                        expression2 = "\"{0}\"  IS  '{1}' ".format(exp2Field1Name, exp2FieldValues[i])
+                        expression2 = "\"{0}\"  IS  '{1}' ".format(exp2Field1Value, exp2FieldValues[i])
                     selection2 = self.makeSelection(layer, expression2, selection1 )
-                    self.makeCentroid(selection2, expression1+' AND '+expression2, centroidLayerDP, firstFieldName, exp2Field1Name)
+                    self.makeCentroid(selection2, expression1+' AND '+expression2, centroidLayerDP, firstFieldName, exp2Field1Value)
                
         #if makeCheck == 1:
         self.addLayerToMap("Selection", centroidLayer)
