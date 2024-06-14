@@ -79,7 +79,6 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
             self.fewExpression2.setLayer(selectedLayer)
 
     def startMain(self):
-        print("Start")
         layer = self.mlcbLayerSelect.currentLayer()
         featureTotal = layer.featureCount()
         currentCrs = layer.crs()
@@ -93,7 +92,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
         secondFieldName = "Of_"+str(featureTotal)+"_features"
         if self.fewExpression2.currentText() != '':
             global thirdFieldName
-            thirdFieldName = 'Subsets' # Field only created if second expression used
+            thirdFieldName = 'Subset_Count' # Field only created if second expression used
             centroidLayerDP.addAttributes([QgsField(firstFieldName, QVariant.String), QgsField(secondFieldName, QVariant.Int), QgsField(thirdFieldName, QVariant.Int)])
         else:
             centroidLayerDP.addAttributes([QgsField(firstFieldName, QVariant.String), QgsField(secondFieldName, QVariant.Int)])
@@ -124,10 +123,6 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
     def expression2(self, centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName):
         # Expression 2
         if self.fewExpression2.currentText() != '':
-            fieldName = "SubCount"
-            centroidLayerDP.addAttributes([QgsField(fieldName, QVariant.Int)])
-            centroidLayer.updateFields()
-
             if self.fewExpression2.isExpression()==True:
                 expression2 = self.fewExpression2.expression()
                 exp2Field1Value = re.search('\"[\w]*\"',expression2).group()
@@ -185,10 +180,8 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
         newFeature.setGeometry(QgsGeometry.fromPointXY(centroid.asPoint()))
         fields = centroidLayerDP.fields()
         attributes = [None] * len(fields)
-        print("First field: {}\n Second field: {}".format(firstFieldName, attributeFieldName))
         attributes[fields.indexFromName(firstFieldName)] = attributeList[0]
         attributes[fields.indexFromName(attributeFieldName)] = attributeList[1]
-        print("Attributes: {}".format(attributes))
         newFeature.setAttributes(attributes)
         centroidLayerDP.addFeatures([newFeature])
         centroidLayerDP.updateExtents()
