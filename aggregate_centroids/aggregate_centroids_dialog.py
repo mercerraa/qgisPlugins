@@ -127,7 +127,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
                 expression2 = self.fewExpression2.expression()
                 exp2Field1Value = re.search('\"[\w]*\"',expression2).group()
                 selection2 = self.makeSelection(layer, expression2, selection1 )
-                self.makeCentroid(selection2, expression2, centroidLayerDP, firstFieldName, thirdFieldName)
+                self.makeCentroid(selection2, expression1+' AND '+expression2, centroidLayerDP, firstFieldName, thirdFieldName)
             else:
                 exp2Field1Value = self.fewExpression2.currentField()[0]
                 exp2FieldIndex = layer.fields().indexOf(exp2Field1Value)
@@ -173,7 +173,6 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
     def addCentroid(self, geometryList, firstFieldName, attributeFieldName, attributeList, centroidLayerDP):
         collected = QgsGeometry.collectGeometry(geometryList)
         if collected.isEmpty():
-            iface.messageBar().pushMessage("Error", "No matches found. No centroid can be created.", level=1, duration=3)
             return 0
         centroid = collected.centroid()
         newFeature = QgsFeature()
