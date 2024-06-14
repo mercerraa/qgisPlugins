@@ -79,6 +79,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
             self.fewExpression2.setLayer(selectedLayer)
 
     def startMain(self):
+        print("Start")
         layer = self.mlcbLayerSelect.currentLayer()
         featureTotal = layer.featureCount()
         currentCrs = layer.crs()
@@ -103,7 +104,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
             expression1 = self.fewExpression1.expression()
             exp1Field1Value = re.search('\"[\w]*\"',expression1).group()
             selection1 = self.makeSelection(layer, expression1)
-            self.makeCentroid(selection1, expression1, centroidLayerDP, firstFieldName, exp1Field1Value)
+            self.makeCentroid(selection1, expression1, centroidLayerDP, firstFieldName, secondFieldName)
             self.expression2(centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName) 
         else:
             exp1Field1Value = self.fewExpression1.currentField()[0]
@@ -165,16 +166,16 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
                     selection.append(feature)
         return list(selection)
 
-    def makeCentroid(self, selection, expression, centroidLayerDP, firstFieldName, attributeFieldName):# secondFieldName
+    def makeCentroid(self, selection, expression, centroidLayerDP, firstFieldName, attributeFieldName):
         geometryList = []
         for member in selection:
             geometryList.append(member.geometry())
         valueCount = len(geometryList)
         attributeList = [expression, valueCount]
-        centroidMade = self.addCentroid( geometryList, firstFieldName, attributeFieldName, attributeList, centroidLayerDP)# secondFieldName
+        centroidMade = self.addCentroid( geometryList, firstFieldName, attributeFieldName, attributeList, centroidLayerDP)
         return centroidMade
 
-    def addCentroid(self, geometryList, firstFieldName, attributeFieldName, attributeList, centroidLayerDP):# secondFieldName
+    def addCentroid(self, geometryList, firstFieldName, attributeFieldName, attributeList, centroidLayerDP):
         collected = QgsGeometry.collectGeometry(geometryList)
         if collected.isEmpty():
             iface.messageBar().pushMessage("Error", "No matches found. No centroid can be created.", level=1, duration=3)
@@ -184,8 +185,10 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
         newFeature.setGeometry(QgsGeometry.fromPointXY(centroid.asPoint()))
         fields = centroidLayerDP.fields()
         attributes = [None] * len(fields)
+        print("First field: {}\n Second field: {}".format(firstFieldName, attributeFieldName))
         attributes[fields.indexFromName(firstFieldName)] = attributeList[0]
         attributes[fields.indexFromName(attributeFieldName)] = attributeList[1]
+        print("Attributes: {}".format(attributes))
         newFeature.setAttributes(attributes)
         centroidLayerDP.addFeatures([newFeature])
         centroidLayerDP.updateExtents()
