@@ -89,8 +89,13 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
         global firstFieldName
         firstFieldName = "Selection"
         global secondFieldName
-        secondFieldName = "Of_"+str(featureTotal)+"features"
-        centroidLayerDP.addAttributes([QgsField(firstFieldName, QVariant.String), QgsField(secondFieldName, QVariant.Int)])
+        secondFieldName = "Of_"+str(featureTotal)+"_features"
+        if self.fewExpression2.currentText() != '':
+            global thirdFieldName
+            thirdFieldName = 'Subsets' # Field only created if second expression used
+            centroidLayerDP.addAttributes([QgsField(firstFieldName, QVariant.String), QgsField(secondFieldName, QVariant.Int), QgsField(thirdFieldName, QVariant.Int)])
+        else:
+            centroidLayerDP.addAttributes([QgsField(firstFieldName, QVariant.String), QgsField(secondFieldName, QVariant.Int)])
         centroidLayer.updateFields()
 
         # Expression 1
@@ -112,7 +117,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
                 else:
                     expression1 = "\"{0}\"  IS  '{1}' ".format(exp1Field1Value, exp1FieldValues[i])
                 selection1 = self.makeSelection(layer, expression1)
-                self.makeCentroid(selection1, expression1, centroidLayerDP, firstFieldName, exp1Field1Value)
+                self.makeCentroid(selection1, expression1, centroidLayerDP, firstFieldName, secondFieldName)
                 self.expression2(centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName) 
                 
     def expression2(self, centroidLayerDP, centroidLayer, layer, expression1, selection1, firstFieldName):
@@ -126,7 +131,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
                 expression2 = self.fewExpression2.expression()
                 exp2Field1Value = re.search('\"[\w]*\"',expression2).group()
                 selection2 = self.makeSelection(layer, expression2, selection1 )
-                self.makeCentroid(selection2, expression2, centroidLayerDP, firstFieldName, exp2Field1Value)
+                self.makeCentroid(selection2, expression2, centroidLayerDP, firstFieldName, thirdFieldName)
             else:
                 exp2Field1Value = self.fewExpression2.currentField()[0]
                 exp2FieldIndex = layer.fields().indexOf(exp2Field1Value)
@@ -139,7 +144,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
                     else:
                         expression2 = "\"{0}\"  IS  '{1}' ".format(exp2Field1Value, exp2FieldValues[i])
                     selection2 = self.makeSelection(layer, expression2, selection1 )
-                    self.makeCentroid(selection2, expression1+' AND '+expression2, centroidLayerDP, firstFieldName, exp2Field1Value)
+                    self.makeCentroid(selection2, expression1+' AND '+expression2, centroidLayerDP, firstFieldName, thirdFieldName)
                
         #if makeCheck == 1:
         self.addLayerToMap("Selection", centroidLayer)
@@ -160,16 +165,16 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
                     selection.append(feature)
         return list(selection)
 
-    def makeCentroid(self, selection, expression, centroidLayerDP, firstFieldName, secondFieldName):
+    def makeCentroid(self, selection, expression, centroidLayerDP, firstFieldName, attributeFieldName):# secondFieldName
         geometryList = []
         for member in selection:
             geometryList.append(member.geometry())
         valueCount = len(geometryList)
         attributeList = [expression, valueCount]
-        centroidMade = self.addCentroid( geometryList, firstFieldName, secondFieldName, attributeList, centroidLayerDP)
+        centroidMade = self.addCentroid( geometryList, firstFieldName, attributeFieldName, attributeList, centroidLayerDP)# secondFieldName
         return centroidMade
 
-    def addCentroid(self, geometryList, firstFieldName, secondFieldName, attributeList, centroidLayerDP):
+    def addCentroid(self, geometryList, firstFieldName, attributeFieldName, attributeList, centroidLayerDP):# secondFieldName
         collected = QgsGeometry.collectGeometry(geometryList)
         if collected.isEmpty():
             iface.messageBar().pushMessage("Error", "No matches found. No centroid can be created.", level=1, duration=3)
@@ -180,7 +185,7 @@ class AggregateCentroidsDialog(QtWidgets.QDialog, FORM_CLASS):
         fields = centroidLayerDP.fields()
         attributes = [None] * len(fields)
         attributes[fields.indexFromName(firstFieldName)] = attributeList[0]
-        attributes[fields.indexFromName(secondFieldName)] = attributeList[1]
+        attributes[fields.indexFromName(attributeFieldName)] = attributeList[1]
         newFeature.setAttributes(attributes)
         centroidLayerDP.addFeatures([newFeature])
         centroidLayerDP.updateExtents()
