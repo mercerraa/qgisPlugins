@@ -130,6 +130,9 @@
        <property name="suffix">
         <string> m</string>
        </property>
+       <property name="value">
+        <double>10.000000000000000</double>
+       </property>
       </widget>
      </item>
      <item>
@@ -160,6 +163,9 @@
       <widget class="QgsSpinBox" name="bufferPointsQgsSpinBox">
        <property name="minimum">
         <number>1</number>
+       </property>
+       <property name="value">
+        <number>5</number>
        </property>
       </widget>
      </item>
