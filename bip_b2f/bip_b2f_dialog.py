@@ -48,6 +48,7 @@ from qgis.PyQt.QtCore import QVariant
 import re
 from osgeo import ogr
 import logging
+from datetime import datetime
 
 
 
@@ -70,11 +71,21 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
         self.OKbb.accepted.connect(self.checkQuery)
 
         formatter = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        logfilename=r'.\BIPbygg2Fast.log'
-        if os.path.isfile(logfilename):
+        cpath = os.getcwd()
+        QgsMessageLog.logMessage(f'cwd: {cpath}', 'BTF', Qgis.Info)
+        current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = 'BIPbygg2Fast_' + str(current_datetime) + '.log'
+        logfilename = os.path.join(cpath, filename )
+        QgsMessageLog.logMessage(f'log: {logfilename}', 'BTF', Qgis.Info)
+        """ if os.path.isfile(logfilename):
             with open(logfilename, 'w') as file:
                 logging.basicConfig(filename=logfilename, level=logging.DEBUG, filemode='w', encoding='utf-8', format=formatter)
-                logging.info("Logging of BIPbygg2Fast")
+                logging.info("Logging of BIPbygg2Fast")  """
+                    
+        with open(logfilename, 'w') as file:
+            logging.basicConfig(filename=logfilename, level=logging.NOTSET, filemode='a', encoding='utf-8', format=formatter)
+            logging.info("Logging of BIPbygg2Fast")
+            logging.info(logfilename)
 
     def checkQuery(self):
         byggnadLayer = self.byggnadMapLayerComboBox.currentLayer()
@@ -84,7 +95,7 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
         bufferPoints = self.bufferPointsQgsSpinBox.value()
 
         # This is for the user to understand errors in output. 0, 1, 2, 3
-        userLogging = 1
+        userLogging = 0
 
         # Set up some variables to be used in later functions
         byggMatch = {}
@@ -99,28 +110,55 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
         att_names = [attribute_name, id_name, fastnyck_name, anlaggning_id_name, fast_bygg_uuid_name]
         logging.debug(f"crs: {crs}")
         logging.debug(f"att_names: {att_names}")
-        # Set up new layer for points to be used by addPoint()
-        point_check = QgsVectorLayer(f'Point?crs={crs}', 'point_check', 'memory')
-        pr_point = point_check.dataProvider()
+        time_now = datetime.now().strftime("%H%M%S")
+        logging.debug(f"{time_now}")
+        #QgsMessageLog.logMessage(f'crs: {crs}', 'BTF', Qgis.Info)
+        pc_yes = False
+        if pc_yes == True:
+            # Set up new layer for points to be used by addPoint()
+            point_check = QgsVectorLayer(f'Point?crs={crs}', 'point_check', 'memory')
+            pr_point = point_check.dataProvider()
 
         ##################################################################################################################
 
         def mergeAY():
-            """This function reads the FNR_FDS attribute and merges all polygons with identical FNR_FDS numbers into one object."""
+            """This function reads the FNR_FDS attribute and merges all polygons with identical FNR_FDS numbers into one object.
+            23.08.2024 rewrite: Cannot reasonably handle large data sets and must filter for only relevant objects.
+            New problem: There are ay objects with FNR_FDS == 0. These have attributes like 'TRAKT: OUTRETT OMRÅDE', 'OMRTYP: Oregistrerad samfällighet'.
+            Stockholms skärgård has many such ay."""
             # Create a dictionary to hold grouped geometries
             grouped_geometries = {}
+
+            ay_near_bygg = []
+            # Select only those ay objects near enough to a RAÄ byggnad to be considered as possible targets
+            for bygg in byggnadLayer.getFeatures():
+                byggBB = bygg.geometry().boundingBox().buffered(50)
+                filterRequest = QgsFeatureRequest().setFilterRect(byggBB)
+                for proximal_ay in ayLayer.getFeatures(filterRequest):
+                    proximal_name = proximal_ay[attribute_name]
+                    if proximal_name in [0, '0', '']:
+                        proximal_name = proximal_ay['EXTERNID']
+                    if proximal_name not in ay_near_bygg:
+                        ay_near_bygg.append(proximal_name)
+                        #logging.debug(f'ay near byggnad: {proximal_name}')
+            logging.debug(f'Total proximal ay: {len(ay_near_bygg)}')
+            #time_now = datetime.now().strftime("%H%M%S")
+            #logging.debug(f"{time_now}")
 
             # Iterate through features and group by attribute
             for feature in ayLayer.getFeatures():
                 attr_value = feature[attribute_name]
+                if attr_value in [0, '0', '']:
+                    logging.debug(f'No {attribute_name} found. Using {feature['EXTERNID']} instead.')
+                    attr_value = feature['EXTERNID']
+
+                if attr_value not in ay_near_bygg: continue
                 # Get the geometry of the feature
                 geom = feature.geometry() #makeValid() should not eliminate entire polygons but does, e.g. FNR_FDS 120046601 QgsGeometry.makeValid(feature.geometry())
                 if attr_value not in grouped_geometries:
                     grouped_geometries[attr_value] = []
                 grouped_geometries[attr_value].append(geom)
-                if userLogging > 1: 
-                    QgsMessageLog.logMessage(f'{attr_value} has {len(grouped_geometries[attr_value])} values', 'BTF', Qgis.Info)
-                    logging.debug(f'mergeAY(): {attr_value} has {len(grouped_geometries[attr_value])} values')
+                #logging.debug(f'mergeAY(): {attr_value} has {len(grouped_geometries[attr_value])} values')
             # Create a new layer to store the merged multipolygon features
             #crs = ayLayer.crs().toWkt()  # Coordinate Reference System of the original layer
             merged_layer = QgsVectorLayer(f'MultiPolygon?crs={crs}', 'merged_layer', 'memory')
@@ -134,10 +172,12 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
             for attr_value, geometries in grouped_geometries.items():
                 # Merge geometries into one multipolygon
                 merged_geometry = QgsGeometry.collectGeometry(geometries)
-                logging.debug(f"att_value: {attr_value} \n with merged_geometry: {merged_geometry}")
-                merged_geometry_valid = merged_geometry # makeValid() should not eliminate entire polygons but does, e.g. FNR_FDS 120046601 QgsGeometry.makeValid(merged_geometry)
-                #if userLogging > 1: QgsMessageLog.logMessage(f'{attr_value} error message: {merged_geometry_valid.lastError()}', 'BTF', Qgis.Info)
-
+                #logging.debug(f"Merge att_value: {attr_value}")
+                merged_geometry_valid = merged_geometry.makeValid() # makeValid() should not eliminate entire polygons but does, e.g. FNR_FDS 120046601 QgsGeometry.makeValid(merged_geometry)
+                if merged_geometry_valid.isNull():
+                    err = merged_geometry_valid.lastError()
+                    logging.debug(f'{attr_value} Invalid Geometry cannot be fixed: {err}\\n Revert to initial merged object.')
+                    merged_geometry_valid = merged_geometry
                 # Create a new feature with the merged geometry
                 merged_feature = QgsFeature()
                 merged_feature.setGeometry(merged_geometry_valid)
@@ -152,17 +192,20 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
         
         #########################################################
 
-        def addData(ay, byggnad, found_ay,byggMatch, id, anlaggning_id, method):
+        def addData(ay, byggnad, found_ay, byggMatch, id, anlaggning_id, method):
             '''Takes the found fastighet (ay) and byggnad and adds new ay to byggMatch dictionary or appends to existing ay'''
             ayOBJEKT_ID = ay.attributes()[merged_layer.fields().indexFromName(attribute_name)]
             global count # Python bollox, so inconsistent. If I pass count into the function it updates the local not the global. Also pr_point doesn't need passing! https://stackoverflow.com/questions/74412503/cannot-access-local-variable-a-where-it-is-not-associated-with-a-value-but
-            if userLogging > 1: QgsMessageLog.logMessage(f'{count}: id:{id}, anl:{anlaggning_id} to ay:{ayOBJEKT_ID} using {method}', 'BTF', Qgis.Info)
-            addPoint(ay, byggnad, method)
+            logging.debug(f'Byggnad: {count} - id:{id}, anl:{anlaggning_id} to ay:{ayOBJEKT_ID} using {method}')
+            if pc_yes == True:
+                addPoint(ay, byggnad, method)
             if ayOBJEKT_ID not in found_ay:
+                logging.debug(f'{ayOBJEKT_ID} not in found_ay. Making new!')
                 byggMatch[ayOBJEKT_ID] = [id],[anlaggning_id],[method]
                 count += 1
                 return True
             elif ay.attributes()[merged_layer.fields().indexFromName(attribute_name)] in found_ay:
+                logging.debug(f'{ayOBJEKT_ID} in found_ay')
                 byggMatch[ayOBJEKT_ID][0].append(id)
                 byggMatch[ayOBJEKT_ID][1].append(anlaggning_id)
                 byggMatch[ayOBJEKT_ID][2].append(method)
@@ -172,7 +215,7 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
                 return False
             
         def addPoint(ay, byggnad, method):
-            '''Creates a new point object from the matches. Not an essential function'''
+            '''Creates a new point object from the matches. Not an essential function. Runs only if pc_yes == True:'''
             bid = byggnad.attributes()[byggnad.fields().indexFromName('id')]
             fastighetsnyckel = byggnad.attributes()[byggnad.fields().indexFromName('fastighetsnyckel')]
             fast_byg_uuid = byggnad.attributes()[byggnad.fields().indexFromName('fast_byg_uuid')]
@@ -180,8 +223,6 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
             ayOBJEKT_ID = ay.attributes()[merged_layer.fields().indexFromName(attribute_name)]
             attributes = [ayOBJEKT_ID, bid, fastighetsnyckel, fast_byg_uuid, anlaggning_id, method, count]
             
-            #point_check = QgsVectorLayer(f'Point?crs={crs}', 'point_check', 'memory')
-            #pr_point = point_check.dataProvider()
             pr_point.addAttributes([QgsField(attribute_name, QVariant.String),\
             QgsField('id', QVariant.String),\
             QgsField('fastighetsnyckel', QVariant.String),\
@@ -210,11 +251,10 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
                 fastighetsnyckel = byggnad.attributes()[byggnad.fields().indexFromName('fastighetsnyckel')]
                 fast_byg_uuid = byggnad.attributes()[byggnad.fields().indexFromName('fast_byg_uuid')]
                 anlaggning_id = byggnad.attributes()[byggnad.fields().indexFromName('anlaggning_id')]
-                if userLogging > 1: QgsMessageLog.logMessage(f'loop {count} -fid: {bfid} id:{bid} fn:{fastighetsnyckel}, uuid:{fast_byg_uuid}', 'BTF', Qgis.Info)
+                logging.debug(f'RAA byggnad {count} - id:{bid} fn:{fastighetsnyckel}, uuid:{fast_byg_uuid}')
                 
                 # get ay (fastighet) feature that has FNR_FDS matching fastighetsnyckel. This can fail if fastighetsnyckel no longer current
-                if not (fastighetsnyckel == NULL or fastighetsnyckel == ''):
-                    if userLogging > 1: QgsMessageLog.logMessage(f'fastighetsnyckel: {fastighetsnyckel}', 'BTF', Qgis.Info)        
+                if not (fastighetsnyckel == NULL or fastighetsnyckel == ''):        
                     request1 = QgsFeatureRequest().setFilterExpression(' "{}" = \'{}\' '.format(attribute_name, str(fastighetsnyckel)))
                     for ay in merged_layer.getFeatures(request1):
                         found = addData(ay, byggnad, found_ay, byggMatch, bid, anlaggning_id, '1_fastighetsnyckel')
@@ -254,7 +294,7 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
                                     if found == True: 
                                         break
                 
-                if found == False: # One last desperate attempt at pairing a byggnad with a by to pair with an ay
+                if found == False: # Try pairing a byggnad with a by to pair with an ay
                     bySpatIndex = QgsSpatialIndex(byLayer.getFeatures(request4))
                     nearest_ids = bySpatIndex.nearestNeighbor(byggnadGeometry.asPoint(), 1)
                     if nearest_ids:
@@ -265,12 +305,24 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
                         byPOS = byGE.pointOnSurface()
                         byPOSgeom = QgsGeometry.createGeometryEngine(byPOS)
                         byBB = by.geometry().boundingBox().buffered(200)
-                        request7 = QgsFeatureRequest().setFilterRect(byBB)
-                        for ay in merged_layer.getFeatures(request7):
+                        request6 = QgsFeatureRequest().setFilterRect(byBB)
+                        for ay in merged_layer.getFeatures(request6):
                             if byPOSgeom.within(ay.geometry().constGet()):
                                 found = addData(ay, byggnad, found_ay, byggMatch, bid, anlaggning_id, '4_snapTo_by')
                                 if found == True: 
                                     break 
+                runLast = True
+                if found == False and runLast == True: # Last resort, pair to nearest ay
+                    byggBB = byggnad.geometry().boundingBox().buffered(100) # Buffer byggnad point out to 100 m then create bounding box to search
+                    request7 = QgsFeatureRequest().setFilterRect(byggBB)
+                    aySpatIndex = QgsSpatialIndex(merged_layer.getFeatures(request7))
+                    nearest_ids = aySpatIndex.nearestNeighbor(byggnadGeometry.asPoint(), 1)
+                    if nearest_ids:
+                        nearest_id = nearest_ids[0]
+                        ay = merged_layer.getFeature(nearest_id)
+                        found = addData(ay, byggnad, found_ay, byggMatch, bid, anlaggning_id, '5_snapTo_nearest_ay')
+                    else:
+                        logging.debug('NO MATCH FOUND\n')
             return
         
         #########################################################
@@ -286,11 +338,13 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
                                     QgsField('anlaggning_id', QVariant.String),\
                                     QgsField('method', QVariant.String)])
             result_layer.updateFields()
-
+            logging.debug(f'Number of merged objects: {len(byggMatch.keys())}')
             # Loop through features in layer containing merged ay objects
             for feature in merged_layer.getFeatures():
                 attr_value = feature[attribute_name]
+                logging.debug(f'Merged object: {attr_value}')
                 if attr_value in byggMatch.keys():
+                    logging.debug(f'Found in byggMatch')
                     geom = feature.geometry()
                     id = str(byggMatch[attr_value][0])
                     anlaggning_id = str(byggMatch[attr_value][1])
@@ -340,7 +394,11 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # Call the function that merges ay polygons
         merged_layer = mergeAY()
+        logging.debug(f" Merging ay objects complete")
+        #QgsProject.instance().addMapLayer(merged_layer)
+
         connect2ay()
+        logging.debug(f" Connect2ay complete")
         
         # Add results so far to project
         """root = QgsProject.instance().layerTreeRoot()
@@ -353,11 +411,14 @@ class BIPbygg2FastDialog(QtWidgets.QDialog, FORM_CLASS):
         QgsProject.instance().addMapLayer(merged_layer, False)
         toGroup.addLayer(merged_layer)"""
 
-        QgsProject.instance().addMapLayer(merged_layer)
-        QgsProject.instance().addMapLayer(point_check)
+        #QgsProject.instance().addMapLayer(merged_layer)
+        if pc_yes == True:
+            QgsProject.instance().addMapLayer(point_check)
         
         result_layer = assigneday()
+        logging.debug(f' Result complete')
         QgsProject.instance().addMapLayer(result_layer)
 
-        buffer_layer = bufferLayer()
-        QgsProject.instance().addMapLayer(buffer_layer)
+        #buffer_layer = bufferLayer()
+        #logging.debug(f' Buffering complete')
+        #QgsProject.instance().addMapLayer(buffer_layer)
