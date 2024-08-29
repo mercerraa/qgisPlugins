@@ -22,3 +22,11 @@ For example, selecting "BuildingType" and then "County" will return a layer of c
 Aggregate Centroids is now a finished product.
 Select field names using dropdowns in either the first or both of the expression fields and/or write expressions.
 An expression can be written using the built in QGIS Expression Builder, for example ```"FieldName" ilike '%searchTerm%'```will search for all text strings in the field named FieldName that contain (case insensitive) searchterm.
+
+## 29.08.2024
+
+The bip_b2f plugin is now uploaded as a functional, if unsatisfactory, plugin to QGIS.
+This plugin is really only of any use within RAÄ as it takes RAÄ building points and connects them to LMs property polygons.
+It is clunky and not terribly efficient.
+
+The last resort method for associating buildings to polygons doesn't seem to work at all.
