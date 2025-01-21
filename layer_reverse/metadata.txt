@@ -1,0 +1,7 @@
+[general]
+name=Layer Reverse
+description=Reverse order of highlighted layers
+version=1.0
+qgisMinimumVersion=3.0
+author=Andrew Mercer
+email=andrew.mercer@raä.se
