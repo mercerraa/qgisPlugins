@@ -15,12 +15,12 @@ class LayerReverse:
         self.toolbar = self.iface.addToolBar("Mercer Toolbar")
         self.toolbar.setObjectName("MercerToolbar")
         # Create an action (button)
-        self.action = QAction(QIcon(":/plugins/layer_reverse/icon.png"), "Run Script", self.iface.mainWindow())
+        self.action = QAction(QIcon(":/icon.png"), "Run Script", self.iface.mainWindow())
         self.action.triggered.connect(self.run_script)
 
         # Add the action (button) to the toolbar
         self.toolbar.addAction(self.action)
-        
+
         # Add the action to the toolbar
         self.iface.addToolBarIcon(self.action)
         self.iface.addPluginToMenu("&Layer Reverse", self.action)
