@@ -4,4 +4,26 @@ description=Reverse order of highlighted layers
 version=1.0
 qgisMinimumVersion=3.0
 author=Andrew Mercer
-email=andrew.mercer@raä.se
+email=https://github.com/mercerraa
+
+about=Reverse order of highlighted layers
+
+tracker=http://bugs
+repository=http://repo
+
+# End of mandatory metadata
+
+# Recommended items:
+
+hasProcessingProvider=no
+# Uncomment the following line and add your changelog:
+# changelog=
+
+# Tags are comma separated with spaces allowed
+tags=layers, contents
+
+homepage=https://github.com/mercerraa/qgisPlugins/tree/main/layer_reverse
+# experimental flag
+experimental=True
+
+
