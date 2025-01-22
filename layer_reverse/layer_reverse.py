@@ -3,6 +3,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.core import Qgis
 from qgis.core import QgsProject
 from qgis.utils import iface
+import os
 
 class LayerReverse:
     def __init__(self, iface):
@@ -12,14 +13,15 @@ class LayerReverse:
 
     def initGui(self):
         # Create a toolbar for the plugin if needed
-        self.toolbar = self.iface.addToolBar("Mercer Toolbar")
-        self.toolbar.setObjectName("MercerToolbar")
+        #self.toolbar = self.iface.addToolBar("Mercer Toolbar")
+        #self.toolbar.setObjectName("MercerToolbar")
         # Create an action (button)
-        self.action = QAction(QIcon(":/icon.png"), "Run Script", self.iface.mainWindow())
+        # self.action = QAction(QIcon(":/plugins/icon.png"), "Reverse layer order", self.iface.mainWindow())
+        self.action = QAction(QIcon(os.path.join( os.path.dirname(__file__), 'icon.png' )), "Reverse layer order", self.iface.mainWindow())
         self.action.triggered.connect(self.run_script)
 
         # Add the action (button) to the toolbar
-        self.toolbar.addAction(self.action)
+        #self.toolbar.addAction(self.action)
 
         # Add the action to the toolbar
         self.iface.addToolBarIcon(self.action)
