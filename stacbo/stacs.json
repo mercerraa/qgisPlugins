@@ -1,0 +1,29 @@
+{
+    "lmDEM":
+    {
+        "stac_url": "https://api.lantmateriet.se/stac-hojd/v1",
+        "name": "Lantmäteriet höjdmodell",
+        "username": "andrew.mercer@raa.se",
+        "password": "!WqhT8wkYM8AhAS"
+    },
+    "lmKLR":
+    {
+        "stac_url": "https://api.lantmateriet.se/stac-vektor/v1/collections/kommun-lan-rike",
+        "name": "Lantmäteriet kommun, län och rike",
+        "username": "",
+        "password": ""
+    },
+    "usgsLST":
+    {
+        "stac_url": "https://landsatlook.usgs.gov/stac-server/collections/landsat-c2ard-sr/items/LC09_CU_009012_20251213_20251217_02_SR",
+        "name": "USGS Landsat ready",
+        "username": "",
+        "password": ""
+    },
+    "empty":{
+        "stac_url": "",
+        "name": "",
+        "username": "",
+        "password": ""
+        }
+}
