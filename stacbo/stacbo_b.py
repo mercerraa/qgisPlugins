@@ -52,6 +52,7 @@ def messageOut(title, messageText, level=Qgis.Info, duration=3):
     print(f'{title}: {messageText}')
 #
 class LoginDialog(QDialog):
+    """Class for creating gui. This uses addresses and login details from a json file, stored in the project folder, or default to empty. The details are then passed on to the main getStac function"""
     def __init__(self, parent=None, logindata=""):
         super().__init__(parent)
 
@@ -79,6 +80,10 @@ class LoginDialog(QDialog):
         self.stac_url_edit.setPlaceholderText("STAC URL")
         self.stac_url_edit.setText(self.urls[0])
 
+        self.collection_edit = QLineEdit()
+        self.collection_edit.setPlaceholderText("STAC URL")
+        self.collection_edit.setText(self.collections[0])
+
         self.user_edit = QLineEdit()
         self.user_edit.setPlaceholderText("Username")
         self.user_edit.setText(self.users[0])
@@ -91,6 +96,7 @@ class LoginDialog(QDialog):
         layout.addWidget(QLabel("STAC URL:"))
         layout.addWidget(self.urlList)
         layout.addWidget(self.stac_url_edit)
+        layout.addWidget(self.collection_edit)
         layout.addWidget(QLabel("Username:"))
         layout.addWidget(self.user_edit)
         layout.addWidget(QLabel("Password:"))
@@ -107,18 +113,21 @@ class LoginDialog(QDialog):
         self.setLayout(layout)
 
     def current_text_changed(self, s):
+        """User can select a predefined STAC and login stored in a json file. This function updates the gui"""
         print("Current text: ", s)
         index = self.names.index(s)
         url = self.urls[index]
+        collection = self.collections[index]
         user = self.users[index]
         password = self.passwords[index]
         print(f'{url}\n with {user}: {password}')
         self.stac_url_edit.setText(url)
+        self.collection_edit.setText(collection)
         self.user_edit.setText(user)
         self.pass_edit.setText(password)
 
     def get_values(self):
-        return self.stac_url_edit.text(), self.user_edit.text(), self.pass_edit.text()
+        return self.stac_url_edit.text(), self.collection_edit.text(), self.user_edit.text(), self.pass_edit.text()
 #
 def getUsePass(STAC_URL="", USERNAME="first.last@mail.org", PASSWORD="password"):
     projectInstance = QgsProject.instance()
@@ -126,9 +135,8 @@ def getUsePass(STAC_URL="", USERNAME="first.last@mail.org", PASSWORD="password")
     stacsfile = 'stacs.json'
     stacspath = os.path.join(projectPath, stacsfile)
     try:
-        if os.path.exists(stacspath):
-            with open(stacspath, encoding='utf-8') as f:
-                jsondata = json.load(f)
+        with open(stacspath, encoding='utf-8') as f:
+            jsondata = json.load(f)
     except:
         jsondata = {"empty":{
         "name": "",
@@ -143,12 +151,12 @@ def getUsePass(STAC_URL="", USERNAME="first.last@mail.org", PASSWORD="password")
     logindata=jsondata
     )
     if dlg.exec():
-        stac_url, username, password = dlg.get_values()
+        stac_url, collection, username, password = dlg.get_values()
         #QMessageBox.information(iface.mainWindow(), "Feedback", "Username/password entered")
     else:
         print("User cancelled")
-        stac_url, username, password = None, None, None
-    return stac_url, username, password
+        stac_url = collection = username = password = None
+    return stac_url, collection, username, password
 #
 class DragRectangle(QgsMapToolEmitPoint):
     rectangleDrawn = pyqtSignal(QgsRectangle)
@@ -219,6 +227,27 @@ def draw_rectangle():
     # Return WGS84 rectangle
     return result['rect']
 #
+def stac_search(search_url, auth, bbox, collection=None):
+    base_query = {
+        "bbox": bbox,
+        "limit": 5
+    }
+
+    # Attempt WITHOUT collections
+    resp = requests.post(search_url, json=base_query, auth=auth)
+
+    if resp.status_code < 400:
+        return resp.json()
+
+    # Retry WITH collections if provided
+    if collection:
+        base_query["collections"] = [collection]
+        resp = requests.post(search_url, json=base_query, auth=auth)
+        resp.raise_for_status()
+        return resp.json()
+
+    resp.raise_for_status()
+#
 def getFolder(startpath=""):
     folder = QFileDialog.getExistingDirectory(
     None,
@@ -233,9 +262,72 @@ def getFolder(startpath=""):
     else:
         return None
 #
+def getSTAC():
+    """"""
+    userDir, currentDir, projectInstance = setInitialPaths()
+    STAC_URL, COLLECTION, USERNAME, PASSWORD = getUsePass()
+    if STAC_URL == None:
+        return
+
+    rect = draw_rectangle()
+    bbox = [rect.xMinimum(), rect.yMinimum(), rect.xMaximum(), rect.yMaximum()]  # min lon, min lat, max lon, max lat
+    print(f'{bbox}')
+
+    urladdress = STAC_URL
+    conformance_url = f"{urladdress}/conformance"
+    resp = requests.get(conformance_url)
+    resp.raise_for_status()
+    conformance = resp.json()
+    itemSearch = False
+    if "https://api.stacspec.org/v1.0.0/item-search" in conformance['conformsTo']:
+        itemSearch = True
+        print('Item search found')
+
+    collections_url = f"{urladdress}/collections"
+    print(collections_url)
+    resp = requests.get(collections_url, auth=HTTPBasicAuth(USERNAME, PASSWORD))
+    resp.raise_for_status()
+    collections = resp.json()
+    print(json.dumps(collections, indent=4))
+
+    search_url = f"{STAC_URL}/search"
+    search_results = stac_search(search_url, auth=HTTPBasicAuth(USERNAME, PASSWORD), bbox=bbox, collection=COLLECTION)
+    print(json.dumps(search_results, indent=4))
+
+    projectPath = projectInstance.absolutePath()
+    os.chdir(os.path.normpath(projectPath))
+    inPath = getFolder(projectPath)
+    if inPath == None:
+        todaydt = datetime.now()
+        dateStr = todaydt.strftime("%Y%m%d_%H%M%S")
+        initPath = os.path.join(projectPath, 'STAC', dateStr)
+        inPath = os.path.normpath(initPath)
+        os.mkdir(inPath)
+        if not os.path.isdir(inPath):
+            os.mkdir(inPath)
+    for item in search_results.get("features", []):
+        item_id = item["id"]
+        print(f"\nItem: {item_id}")
+        for asset_key, asset in item["assets"].items():
+            url = asset["href"]
+            print(f"  - {asset_key}: {url}")
+            local_path = os.path.join(inPath, os.path.basename(url))
+            print(f"    Downloading to {local_path}...")
+            with requests.get(url, stream=True, auth=HTTPBasicAuth(USERNAME, PASSWORD)) as r:
+                if r.reason == 'Forbidden':
+                    print('Access forbidden')
+                r.raise_for_status()
+                with open(local_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+    print(f'Files downloaded to {inPath}')
+    
 def downloadFiles():
     """"""
     userDir, currentDir, projectInstance = setInitialPaths()
+    todaydt = datetime.now()
+    dateStr = todaydt.strftime("%Y%m%d_%H%M%S")
+
     rect = draw_rectangle()
     bbox = [rect.xMinimum(), rect.yMinimum(), rect.xMaximum(), rect.yMaximum()]  # min lon, min lat, max lon, max lat
     print(f'{bbox}')
@@ -301,4 +393,4 @@ def downloadFiles():
 
     return #inPath
 
-downloadFiles()
+getSTAC()
