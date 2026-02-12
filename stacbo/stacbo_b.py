@@ -114,13 +114,11 @@ class LoginDialog(QDialog):
 
     def current_text_changed(self, s):
         """User can select a predefined STAC and login stored in a json file. This function updates the gui"""
-        print("Current text: ", s)
         index = self.names.index(s)
         url = self.urls[index]
         collection = self.collections[index]
         user = self.users[index]
         password = self.passwords[index]
-        print(f'{url}\n with {user}: {password}')
         self.stac_url_edit.setText(url)
         self.collection_edit.setText(collection)
         self.user_edit.setText(user)
@@ -227,26 +225,30 @@ def draw_rectangle():
     # Return WGS84 rectangle
     return result['rect']
 #
-def stac_search(search_url, auth, bbox, collection=None):
+def stac_search(search_url, itemSearch, auth, bbox, collection=None):
     base_query = {
         "bbox": bbox,
         "limit": 5
     }
-
-    # Attempt WITHOUT collections
-    resp = requests.post(search_url, json=base_query, auth=auth)
-
-    if resp.status_code < 400:
-        return resp.json()
-
-    # Retry WITH collections if provided
-    if collection:
-        base_query["collections"] = [collection]
+    collection_query = {
+        "bbox": bbox,
+        "limit": 5,
+        "collections": collection
+    }
+    trybase = True
+    if collection and not collection[0] == '':
+        print(f'Trying with collection {collection}')
+        resp = requests.post(search_url, json=collection_query, auth=auth)
+        resp.raise_for_status()
+        print(f'Status: {resp.status_code} with number returned = {resp.json()["numberReturned"]}')
+        if resp.status_code < 400 and resp.json()["numberReturned"]>0:
+            trybase = False
+    if trybase == True :
+        print('Trying without collection')
         resp = requests.post(search_url, json=base_query, auth=auth)
         resp.raise_for_status()
-        return resp.json()
-
-    resp.raise_for_status()
+        print(f'Status: {resp.status_code}')
+    return resp.json()
 #
 def getFolder(startpath=""):
     folder = QFileDialog.getExistingDirectory(
@@ -268,7 +270,7 @@ def getSTAC():
     STAC_URL, COLLECTION, USERNAME, PASSWORD = getUsePass()
     if STAC_URL == None:
         return
-
+    #print(f'stacs.json:    {STAC_URL}/collections/{COLLECTION}')
     rect = draw_rectangle()
     bbox = [rect.xMinimum(), rect.yMinimum(), rect.xMaximum(), rect.yMaximum()]  # min lon, min lat, max lon, max lat
     print(f'{bbox}')
@@ -283,16 +285,23 @@ def getSTAC():
         itemSearch = True
         print('Item search found')
 
-    collections_url = f"{urladdress}/collections"
-    print(collections_url)
-    resp = requests.get(collections_url, auth=HTTPBasicAuth(USERNAME, PASSWORD))
-    resp.raise_for_status()
-    collections = resp.json()
-    print(json.dumps(collections, indent=4))
+        collections_url = f"{urladdress}/collections"
+        print(f'Collections at: {collections_url}')
+        resp = requests.get(collections_url, auth=HTTPBasicAuth(USERNAME, PASSWORD))
+        resp.raise_for_status()
+        global collections
+        collections = resp.json()
+        for c in collections['collections']: 
+            print(f"{ c['title']} as {c['id']}")
+            if c['id'] == COLLECTION:
+                print(f"\n{c['id']} matches {COLLECTION}\n")
+        #collectionText = json.dumps(collections, indent=2, ensure_ascii=False).encode('utf8')
+        #print(f'Collection:\n{collectionText.decode()}\n--------------------')
+
 
     search_url = f"{STAC_URL}/search"
-    search_results = stac_search(search_url, auth=HTTPBasicAuth(USERNAME, PASSWORD), bbox=bbox, collection=COLLECTION)
-    print(json.dumps(search_results, indent=4))
+    search_results = stac_search(search_url, itemSearch, auth=HTTPBasicAuth(USERNAME, PASSWORD), bbox=bbox, collection=[COLLECTION])
+    print(f'Search:\n{json.dumps(search_results, indent=2)}\n********************')
 
     projectPath = projectInstance.absolutePath()
     os.chdir(os.path.normpath(projectPath))
@@ -321,76 +330,6 @@ def getSTAC():
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
     print(f'Files downloaded to {inPath}')
-    
-def downloadFiles():
-    """"""
-    userDir, currentDir, projectInstance = setInitialPaths()
-    todaydt = datetime.now()
-    dateStr = todaydt.strftime("%Y%m%d_%H%M%S")
-
-    rect = draw_rectangle()
-    bbox = [rect.xMinimum(), rect.yMinimum(), rect.xMaximum(), rect.yMaximum()]  # min lon, min lat, max lon, max lat
-    print(f'{bbox}')
-    # Lantmäteriet credentials
-    #thisdir = os.path.dirname(os.path.abspath(__file__))
-    STAC_URL, USERNAME, PASSWORD = getUsePass()
-    print(f'Obtain from {STAC_URL} using credentials for {USERNAME}')
-    if STAC_URL == None:
-        return
-    todaydt = datetime.now()
-    dateStr = todaydt.strftime("%Y%m%d_%H%M%S")
-
-    collections_url = f"{STAC_URL}/collections"
-    try:
-        resp = requests.get(collections_url, auth=HTTPBasicAuth(USERNAME, PASSWORD))
-    except:
-        return
-    resp.raise_for_status()
-    collections = resp.json()
-
-    search_url = f"{STAC_URL}/search"
-    query = {
-        "bbox": bbox,
-        "limit": 5,
-        # optionally add: "collections": ["nh_dtm_1"]
-    }
-
-    resp = requests.post(search_url, json=query, auth=HTTPBasicAuth(USERNAME, PASSWORD))
-    resp.raise_for_status()
-    search_results = resp.json()
-
-    projectPath = projectInstance.absolutePath()
-    # currentDir = os.getcwd()
-    # if projectPath != currentDir:
-    #     os.chdir(os.path.normpath(projectPath))
-    
-    # Download directory
-    homeDir = Path.home()
-    todaydt = datetime.now()
-    dateStr = todaydt.strftime("%Y%m%d")
-    #dateStr = todaydt.strftime("%Y%m%d_%H%M%S")
-    # initPath = os.path.join(homeDir, 'InData', 'DEM', dateStr)
-    # inPath = os.path.normpath(initPath)
-    # if not os.path.isdir(inPath):
-    #     os.mkdir(inPath)
-
-    inPath = getFolder(projectPath)
-
-    for item in search_results.get("features", []):
-        item_id = item["id"]
-        print(f"\nItem: {item_id}")
-        for asset_key, asset in item["assets"].items():
-            url = asset["href"]
-            print(f"  - {asset_key}: {url}")
-            local_path = os.path.join(inPath, os.path.basename(url))
-            print(f"    Downloading to {local_path}...")
-            with requests.get(url, stream=True, auth=HTTPBasicAuth(USERNAME, PASSWORD)) as r:
-                r.raise_for_status()
-                with open(local_path, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-        messageOut('Update',f'DEMs downloaded to {inPath}')
-
-    return #inPath
 
 getSTAC()
+

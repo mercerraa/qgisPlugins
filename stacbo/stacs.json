@@ -20,6 +20,13 @@
         "username": "",
         "password": ""
     },
+    "copDEM":{
+        "name": "CopDEM TIFF (10 m)",
+        "stac_url": "https://stac.dataspace.copernicus.eu/v1",
+        "collection": "cop-dem-eea-10-laea-tif",
+        "username": "",
+        "password": ""
+        },
     "empty":{
         "name": "",
         "stac_url": "",
